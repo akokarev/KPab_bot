@@ -2,6 +2,14 @@ var botName   = '@KPab_bot'
 var API_TOKEN = 'TELEGRAM_BOT_TOKEN'
 var CONFIG_ID = 'GOOGLE_ID__CONFIG'
 var scriptURL = 'https://script.google.com/macros/s/GOGGLE_SCRIPT_SHARE_URL/exec'
+var adminId   = 'YOUR_ID get by /chatid private message'
+
+function checkTime(i) {
+  if (i<10) {
+    i = "0" + i;
+  }
+  return i;
+}
 
 function doPost(e) {
   var error = false
@@ -36,13 +44,59 @@ function doPost(e) {
           grafikToken = botConfigVal[row][2]
         }
       }
+      
       //разбираем команду
       var command = msg.text.split(" ");
+      var allParam = msg.text.substr(msg.text.indexOf(" ") + 1);
       
       //проверяем GOOGLE_ID
-      if (((grafikToken == 'none' )||(grafikToken == 'deleted'))&&(command[0]!='/setup')&&(command[0]!='/setup'+botName)&&(command[0]!='/delete')&&(command[0]!='/delete'+botName)) {
+      if ( (grafikToken == 'none' )||(grafikToken == 'deleted') ) {
+        if ( !( (command[0]=='/setup')||(command[0]=='/setup'+botName)||(command[0]=='/delete')||(command[0]=='/delete'+botName) ) ) {
         error = true
         message = message+'\nУстановите ID вашего графика в Google таблицах командой: <strong>/setup [GOOGLE_ID]</strong>'
+        }
+      }
+      
+      //===NOW===
+      if ( ( (command[0] == '/now') || (command[0] == '/now'    +botName)     
+      ) && (!error) ) {
+          
+        
+        
+        // открываем график работы 
+        var sheets =  SpreadsheetApp.openById(grafikToken).getSheets()
+        var checkNow = false
+        
+        // обходим все листы кроме конфига и архива
+        for (var s=0;  (s < sheets.length)&&(!checkNow); s++) {
+          var sheet = sheets[s];
+          var sheetName = sheet.getName();
+          
+          if ( (sheetName != 'KPab_bot')&&(sheetName != 'Settings')&&(sheetName.indexOf("(архив)") == -1) && ((command.length==1)||(command[1]==sheetName)) ) {
+            checkNow = true
+        
+            //получаем первую ячейку с формулой =СЕГОДНЯ()
+            message = sheet.getRange("A1").getDisplayValue() //+ '(' +sheetName+')'      
+          }
+        }
+        
+        if (!checkNow) {
+          message = 'Ошибка'
+          error = true;
+        }
+      
+      }
+      
+      
+      //===NOW2===
+      if ( ( (command[0] == '/now2') || (command[0] == '/now2'    +botName)     
+      ) && (!error) ) {
+        var d=new Date();
+        var day=checkTime(d.getDate());
+        var month=checkTime(d.getMonth() + 1);
+        var year=d.getFullYear();
+        var now2 = day + "." + month + "." + year; 
+        message = now2;
       }
       
       //===TODAY===
@@ -70,27 +124,41 @@ function doPost(e) {
         // открываем график работы 
         var sheets =  SpreadsheetApp.openById(grafikToken).getSheets()
         
-        // обходим все листы кроме конфига
+        // обходим все листы кроме конфига и архива
         for (var s=0; s < sheets.length; s++) {
           var sheet = sheets[s];
           var sheetName = sheet.getName();
           
-          if ( (sheetName != 'KPab_bot') && ((command.length==1)||(command[1]==sheetName)) ) {
+          if ( (sheetName != 'KPab_bot')&&(sheetName != 'Settings')&&(sheetName.indexOf("(архив)") == -1) && ((command.length==1)||(command[1]==sheetName)) ) {
             var isCaptionSet = false
            
             //получаем первую строку
             var firstRow = sheet.getRange("A1:1").getValues()[0]
             var grafik = sheet.getRange("2:367").getValues()
             
-            var d=0;
-            while (''+firstRow[0] != grafik[d][0] ) { d++ }
-            d=d+offset;
+            //текущая дата
+            var dt = new Date();
+            var day = checkTime(dt.getDate());
+            var month = checkTime(dt.getMonth() + 1);
+            var year= dt.getFullYear();
+            var now = day + "." + month + "." + year; 
+            
+            //дата в строке
+            var d=-1;
+            var rday,rmonth,ryear,rdate;
+            do { //ищем совпадение
+              d++;
+              rday = checkTime(grafik[d][0].getDate());
+              rmonth = checkTime(grafik[d][0].getMonth() + 1);
+              ryear = grafik[d][0].getFullYear();
+              rdate = rday + "." + rmonth + "." + ryear; 
+            } while (now != rdate);
+            d=d+offset; //смещение по команде (вчера.сегодня.завтра)
             
             //в цикле проверяем кто работает и добавляем в сообщение
             for (var i = 1; i < firstRow.length; i++) {
               for (var j = 3; j < grafikConfig.length; j++) {
                 if ((grafik[d][i] == grafikConfig[j][1])&&((grafikConfig[j][0]=='*')||(grafikConfig[j][0]==sheetName)) ){ 
-                  
                   if (!isMainCaptionSet) {
                     message = message+'\n'+grafikConfig[1+offset][0]
                     isMainCaptionSet = true;
@@ -99,7 +167,8 @@ function doPost(e) {
                     message = message + grafikConfig[1+offset][2] + sheetName + grafikConfig[1+offset][3]
                     isCaptionSet = true;
                   }
-                  message = message + grafikConfig[j][2]+firstRow[i]+grafikConfig[j][3] 
+                  message = message + grafikConfig[j][2]+firstRow[i]+grafikConfig[j][3]
+                  break;
                 }
               }
             }
@@ -115,23 +184,23 @@ function doPost(e) {
           message = message+'\nНи чего не найдено! Проверьте настройки.'
           error = true;
         }
-      
+        
       }
       
       //===CHATID===
-      if (command[0] == '/chatid') {
+      if ( (command[0] == '/chatid') || (command[0] == '/chatid'+botName) ) {
         message = ''+chatId
       }
       
       //===PING===
-      if (command[0] == '/ping') {
+      if ( (command[0] == '/ping') || (command[0] == '/ping'+botName) ) {
 
         message = 'pong';
-        if (command[1]) {message = 'pong '+command[1]}
+        if (command[1]) {message = 'pong '+allParam}
       }
       
       //===TEST===
-      if (command[0] == '/test') {
+      if ( (command[0] == '/test') || (command[0] == '/test'+botName) ) {
 
         message = e.postData.contents;
       }
@@ -139,9 +208,7 @@ function doPost(e) {
       
       //===SETUP===
       out_setup: if ( ((command[0] == '/setup')||(command[0] == '/setup'+botName)) ) {
-        
         if (command.length==2) {
-          
           // установка в none и deleted эквивалентны команде удалить
           if ((command[1] == 'deleted')) {
             command[0] = '/delete'+botName
@@ -158,10 +225,11 @@ function doPost(e) {
           
           //Новые значения
           var newValues = [chatDesc, chatId, command[1]];
-          
+
           //Поиск уже установленного токена
           var row = 0;
-          while ( (chatId != botConfigVal[row][1])&&(botConfigVal[row][1] != '') ) { row++ }
+          while ( (chatId != botConfigVal[row][1])&&(botConfigVal[row][1] != '') ) {
+            row++ }
           row = row+2;  
           botConfigSheet.getRange('A'+row+':C'+row).setValues([newValues])
           message = message +'\nНовый GOOGLE_ID установлен!'
@@ -243,6 +311,28 @@ function doPost(e) {
       }
       
       
+      //===SEND===
+      if ((command[0] == '/send')&&(chatId == adminId)){
+        message = 'Error!'
+        
+        var uniqueId = []
+        
+        //Загружаем все уникальные chatId
+        for (var row = 0; row < botConfigVal.length; row++) {
+          if (uniqueId.indexOf( botConfigVal[row][1] ) == -1 ) {
+            uniqueId.push(botConfigVal[row][1])
+          }
+        }
+        
+        uniqueId.forEach(function(sendId) {
+          //if (sendId == adminId) {
+          botSendMessage(sendId, allParam);
+          //}
+        });
+        
+        message = 'Ok!'
+      }
+      
       //===HELP===
       //===START===
       if ((command[0] == '/help')||(command[0] == '/help'+botName)||(command[0] == '/start')||(command[0] == '/start'+botName)) {
@@ -250,8 +340,8 @@ function doPost(e) {
 Привет! Я бот "Кто работает", скоращенно "КРаб".\n\
 Моя задача - отображать список сотрудников на основании графика работы.\n\
 \n\
-График работы - это простая Google таблица, в которой в левой верхней ячейке написана формула <b>=СЕГОДНЯ()</b>, в столбцах указываются фамилии сотрудников, а строках даты и график работы.\n\
-Пример: https://docs.google.com/spreadsheets/d/1cbxaPQIMtQ1INnc8PH6CLaOL4h3xcXZzwDwvTJMut58/edit?usp=sharing\n\
+График работы - это простая Google таблица, в которой в левой верхней ячейке написана формула <b>=СЕГОДНЯ()</b>, в столбцах указываются фамилии сотрудников, а в строках даты и график работы.\n\
+Пример: https://docs.google.com/spreadsheets/d/1bwqL4SBIxtV-z9oQkEetWRXKUb-HIwAIGaMjR03dK7A/edit?usp=sharing\n\
 \n\
 Обрати внимание на служебный лист <b>KPab_bot</b>.\n\
 Здесь в первых 3х строках указаны выводимые сообщения для команд yesterday/today/tomorrow(слева направо):\n\
@@ -265,9 +355,10 @@ function doPost(e) {
 Третий столбец используется перед выводом фамилии сотрудника. Это хорошее место для вставки перевода строки или запятой перед фамилией.\n\
 Четвертый столбец выводится после фамилии сотрудника. Здесь удобно вставить закрывающий тег.\n\
 \n\
+Лист <b>Settings</b> необязательный, здесь можно задать цвет фона и текста для наглядного оформления графика. Чтобы изменения вступили в силу, перейди на лист с графиком и запусти макрос <i>Formatter</i> (Инструменты-Макросы-Formatter).)\n\
 Чтобы подключиться к существующей таблице выполни команду <b>/setup [GOOGLE_ID]</b>.\n\
 Например, для подключения демонстрационной таблицы из примера:\n\
-<b>/setup 1cbxaPQIMtQ1INnc8PH6CLaOL4h3xcXZzwDwvTJMut58</b>\n\
+<b>/setup 1bwqL4SBIxtV-z9oQkEetWRXKUb-HIwAIGaMjR03dK7A</b>\n\
 \n\
 После установки можешь использовать команду <b>/today</b> для получения списка всех работающих сотрудников на текущий день.\n\
 Либо команду <b>/today Техподдержка</b> чтобы узнать только про один отдел.\n\
@@ -291,6 +382,15 @@ https://github.com/akokarev/KPab_bot\n\
       
       //=======
       
+  botSendMessage(chatId, message);
+      
+    }
+  }
+
+}
+
+function botSendMessage(chatId, message)
+{
       //формируем ответ
       var payload = {
         'method': 'sendMessage',
@@ -305,10 +405,6 @@ https://github.com/akokarev/KPab_bot\n\
       
       // и отправляем его боту
       UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data);
-      
-    }
-  }
-
 }
 
 function doCron(e) 
@@ -337,10 +433,22 @@ function setWebhook() {
   UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + "/setWebhook?url=" + scriptURL);
 }
 
+function BroadcastPost() {
+  var msg = '/send С Новым годом!\\n\
+\\n\
+Проверьте пожалуйста таблицу \\"график работы\\". Бот работает только в пределах первых 366 строк (без шапки). Чтобы продолжить получать уведомления и не потерять прошлые данные, создайте новый лист с графиком на 2020 год. Пожалуйста, добавьте в название старого листа <b><i>(архив)</i></b>. Бот не будет обрабатывать такие листы.\\n\
+\\n\
+Кстати, в таблице из примера /help появились макросы для быстрого применения настроек цвета (лист Settings) ко всем листам. Используйте меню \\"Инструменты-Макросы-Formatter\\".\\n\
+\\n\
+Желаю Вам хороших выходных! (@akokarev)'
+  var v_postData = {contents:'{"message":{"chat":{"id":'+adminId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
+  var e={postData:v_postData}
+  doPost(e)
+}
+
 function TestPost() {
-  var chatid = 'YOUR_CHAT_ID'
-  var msg = '/ping'
-  var v_postData = {contents:'{"message":{"chat":{"id":'+chatid+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
+  var msg = '/today'
+  var v_postData = {contents:'{"message":{"chat":{"id":'+adminId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
   var e={postData:v_postData}
   doPost(e)
 }
