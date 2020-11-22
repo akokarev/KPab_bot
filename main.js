@@ -429,6 +429,7 @@ function botSendMessage(chatId, message)
         UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data)
         return true
       }catch(e){
+        //botSendMessage(adminId,chatId+'\n-----\n'+message+'\n-----\n'+e)
         return false
       }
 }
@@ -460,6 +461,19 @@ function doCron(e)
 
 function setWebhook() {
   UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + "/setWebhook?url=" + scriptURL);
+}
+
+function BroadcastPost() {
+  var msg = '/send С Новым годом!\\n\
+\\n\
+Проверьте пожалуйста таблицу \\"график работы\\". Бот работает только в пределах первых 366 строк (без шапки). Чтобы продолжить получать уведомления и не потерять прошлые данные, создайте новый лист с графиком на 2020 год. Пожалуйста, добавьте в название старого листа <b><i>(архив)</i></b>. Бот не будет обрабатывать такие листы.\\n\
+\\n\
+Кстати, в таблице из примера /help появились макросы для быстрого применения настроек цвета (лист Settings) ко всем листам. Используйте меню \\"Инструменты-Макросы-Formatter\\".\\n\
+\\n\
+Желаю Вам хороших выходных! (@akokarev)'
+  var v_postData = {contents:'{"message":{"chat":{"id":'+adminId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
+  var e={postData:v_postData}
+  doPost(e)
 }
 
 function TestPost() {
