@@ -13,6 +13,7 @@ function checkTime(i) {
 
 function doPost(e) {
   var error = false
+  var sendmsg = true
   var message = ''
   
   // получаем сигнал от бота
@@ -35,7 +36,13 @@ function doPost(e) {
     if (msg.hasOwnProperty('entities') && msg.entities[0].type == 'bot_command') {
       
       //Загрузка конфигурации
-      var botConfigSheet = SpreadsheetApp.openById(CONFIG_ID).getSheetByName('CONFIG')
+      try {
+        var botConfigSheet = SpreadsheetApp.openById(CONFIG_ID).getSheetByName('CONFIG');
+      } catch (e) {
+        sendmsg &= botSendMessage(chatId,'Ошибка загрузки основной конфигурации');
+        //botSendMessage(adminId,'Ошибка загрузки основной конфигурации');
+        return sendmsg;
+      }
       var botConfig = botConfigSheet.getRange('A2:C')
       var botConfigVal = botConfig.getValues()
       var grafikToken = 'none'
@@ -63,8 +70,13 @@ function doPost(e) {
           
         
         
-        // открываем график работы 
-        var sheets =  SpreadsheetApp.openById(grafikToken).getSheets()
+        // открываем график работы
+        try {
+          var sheets =  SpreadsheetApp.openById(grafikToken).getSheets();
+        }catch(e){
+          sendmsg &= botSendMessage(chatId,'Не удалось открыть таблицу '+grafikToken);
+          return false;
+        }
         var checkNow = false
         
         // обходим все листы кроме конфига и архива
@@ -81,7 +93,7 @@ function doPost(e) {
         }
         
         if (!checkNow) {
-          message = 'Ошибка'
+          message = 'Ошибка';
           error = true;
         }
       
@@ -146,13 +158,18 @@ function doPost(e) {
             //дата в строке
             var d=-1;
             var rday,rmonth,ryear,rdate;
-            do { //ищем совпадение
-              d++;
-              rday = checkTime(grafik[d][0].getDate());
-              rmonth = checkTime(grafik[d][0].getMonth() + 1);
-              ryear = grafik[d][0].getFullYear();
-              rdate = rday + "." + rmonth + "." + ryear; 
-            } while (now != rdate);
+            try{
+              do { //ищем совпадение
+                d++;
+                rday = checkTime(grafik[d][0].getDate());
+                rmonth = checkTime(grafik[d][0].getMonth() + 1);
+                ryear = grafik[d][0].getFullYear();
+                rdate = rday + "." + rmonth + "." + ryear; 
+              } while (now != rdate);
+            }catch(e){
+              sendmsg &= botSendMessage(chatId,'Неверный формат даты в ячейке '+sheetName+'!А'+(d+2)+' таблицы '+grafikToken);
+              return false;
+            }
             d=d+offset; //смещение по команде (вчера.сегодня.завтра)
             
             //в цикле проверяем кто работает и добавляем в сообщение
@@ -260,7 +277,12 @@ function doPost(e) {
       if (((command[0] == '/cron')||(command[0] == '/cron' +botName))&&(!error)) {
        
         //Загрузка конфигурации
-        var botCronSheet = SpreadsheetApp.openById(CONFIG_ID).getSheetByName('CRON')
+        try {
+          var botCronSheet = SpreadsheetApp.openById(CONFIG_ID).getSheetByName('CRON');
+        }catch(e){
+          sendmsg &= botSendMessage(chatId,'Не удалось загрузить лист CRON. Администратор бота оповещен.');
+          //botSendMessage(adminId,'Не удалось загрузить лист CRON. '+chatId);
+        }
         var botCron = botCronSheet.getRange('A2:G')
         var botCronVal = botCron.getValues()
 
@@ -325,7 +347,7 @@ function doPost(e) {
         }
         
         uniqueId.forEach(function(sendId) {
-          //if (sendId == adminId) {
+         // if ((sendId == adminId)||(sendId ==1234)) {
           botSendMessage(sendId, allParam);
           //}
         });
@@ -381,12 +403,11 @@ https://github.com/akokarev/KPab_bot\n\
       }
       
       //=======
-      
-  botSendMessage(chatId, message);
-      
+      sendmsg &= botSendMessage(chatId, message);
     }
   }
 
+  return sendmsg
 }
 
 function botSendMessage(chatId, message)
@@ -403,8 +424,13 @@ function botSendMessage(chatId, message)
         "payload": payload
       }
       
-      // и отправляем его боту
-      UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data);
+      try{
+        // и отправляем его боту
+        UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data)
+        return true
+      }catch(e){
+        return false
+      }
 }
 
 function doCron(e) 
@@ -414,7 +440,7 @@ function doCron(e)
   var botCron = botCronSheet.getRange('A2:G')
   var botCronVal = botCron.getValues()
   
-  for (var row = 0; row < botCronVal.length; row++) {
+  for (var row = botCronVal.length-1; row >= 0 ; row--) {
         if (
           ( (e.minute          == botCronVal[row][2])||('*'==botCronVal[row][2]) )&& //минута
           ( (e.hour            == botCronVal[row][3])||('*'==botCronVal[row][3]) )&& //час
@@ -424,7 +450,10 @@ function doCron(e)
         ) {
           var v_postData = {contents:'{"message":{"chat":{"id":'+botCronVal[row][0]+',"title":"GSTriger","type":"group"},"text":"'+botCronVal[row][1]+'","entities":[{"type":"bot_command"}]}}'}
           var e={postData:v_postData}
-          doPost(e)
+          //Если сообщение не доставлено - удалить задачу cron
+          if (doPost(e)==false) {
+            botCronSheet.deleteRow(2+row);
+          }
         }
   }
 }
@@ -433,22 +462,10 @@ function setWebhook() {
   UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + "/setWebhook?url=" + scriptURL);
 }
 
-function BroadcastPost() {
-  var msg = '/send С Новым годом!\\n\
-\\n\
-Проверьте пожалуйста таблицу \\"график работы\\". Бот работает только в пределах первых 366 строк (без шапки). Чтобы продолжить получать уведомления и не потерять прошлые данные, создайте новый лист с графиком на 2020 год. Пожалуйста, добавьте в название старого листа <b><i>(архив)</i></b>. Бот не будет обрабатывать такие листы.\\n\
-\\n\
-Кстати, в таблице из примера /help появились макросы для быстрого применения настроек цвета (лист Settings) ко всем листам. Используйте меню \\"Инструменты-Макросы-Formatter\\".\\n\
-\\n\
-Желаю Вам хороших выходных! (@akokarev)'
-  var v_postData = {contents:'{"message":{"chat":{"id":'+adminId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
-  var e={postData:v_postData}
-  doPost(e)
-}
-
 function TestPost() {
   var msg = '/today'
-  var v_postData = {contents:'{"message":{"chat":{"id":'+adminId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
+  var chatId = adminId
+  var v_postData = {contents:'{"message":{"chat":{"id":'+chatId+',"title":"TestPost","type":"group"},"text":"'+msg+'","entities":[{"type":"bot_command"}]}}'}
   var e={postData:v_postData}
   doPost(e)
 }
