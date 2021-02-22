@@ -40,7 +40,6 @@ function doPost(e) {
         var botConfigSheet = SpreadsheetApp.openById(CONFIG_ID).getSheetByName('CONFIG');
       } catch (e) {
         sendmsg &= botSendMessage(chatId,'Ошибка загрузки основной конфигурации');
-        //botSendMessage(adminId,'Ошибка загрузки основной конфигурации');
         return sendmsg;
       }
       var botConfig = botConfigSheet.getRange('A2:C')
@@ -88,7 +87,7 @@ function doPost(e) {
             checkNow = true
         
             //получаем первую ячейку с формулой =СЕГОДНЯ()
-            message = sheet.getRange("A1").getDisplayValue() //+ '(' +sheetName+')'      
+            message = sheet.getRange("A1").getDisplayValue()
           }
         }
         
@@ -347,7 +346,6 @@ function doPost(e) {
         }
         
         uniqueId.forEach(function(sendId) {
-         // if ((sendId == adminId)||(sendId ==1234)) {
           botSendMessage(sendId, allParam);
           //}
         });
@@ -429,7 +427,6 @@ function botSendMessage(chatId, message)
         UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data)
         return true
       }catch(e){
-        //botSendMessage(adminId,chatId+'\n-----\n'+message+'\n-----\n'+e)
         return false
       }
 }
