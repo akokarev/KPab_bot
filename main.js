@@ -205,10 +205,10 @@ function doPost(e) {
       
       
       //===WEEK===
-      out_week: if ( ( (command[0] == '/week')     || (command[0] == 'week'    +botName) 
+      out_week: if ( ( (command[0] == '/week') || (command[0] == '/week'+botName) 
       ) && (!error) ) {
                
-        var days = 3;
+        var days = 7;
                
         // загружаем настройки отображения графика
         try {
