@@ -1,4 +1,5 @@
 var botName   = '@KPab_bot'
+var botVer    = '12';
 var API_TOKEN = 'TELEGRAM_BOT_TOKEN'
 var CONFIG_ID = 'GOOGLE_ID__CONFIG'
 var scriptURL = 'https://script.google.com/macros/s/GOGGLE_SCRIPT_SHARE_URL/exec'
@@ -204,9 +205,119 @@ function doPost(e) {
       }
       
       
+      
+
+      //===DAY===
+      out_day: if ( ( (command[0] == '/day') || (command[0] == '/day'+botName)
+                     ) && (!error) ) {
+        
+        if (command.length == 1){
+          message = 'Ошибка: Укажите количество дней';
+          isMainCaptionSet = true;
+          break out_day;
+        }
+        
+        var days = Number(command[1])
+               
+        // загружаем настройки отображения графика
+        try {
+          var grafikConfig =  SpreadsheetApp.openById(grafikToken).getSheetByName('KPab_bot').getRange('A:D').getValues()
+        }catch(e) {
+          error = true;
+          message = message+'\nНеверный Google_ID или ошибка доступа';
+          break out_day;
+        }
+        var isMainCaptionSet = false;
+        
+        // открываем график работы 
+        var sheets =  SpreadsheetApp.openById(grafikToken).getSheets()
+        
+        // обходим все листы кроме конфига и архива
+        for (var s=0; s < sheets.length; s++) {
+          var sheet = sheets[s];
+          var sheetName = sheet.getName();
+          
+          if ( (sheetName != 'KPab_bot')&&(sheetName != 'Settings')&&(sheetName.indexOf("(архив)") == -1) && ((command.length==2)||(command[2]==sheetName)) ) {
+            var isCaptionSet = false
+           
+            //получаем первую строку
+            var firstRow = sheet.getRange("A1:1").getValues()[0]
+            var grafik = sheet.getRange("2:367").getValues()
+            
+            //текущая дата
+            var dt = new Date();
+            var day = checkTime(dt.getDate());
+            var month = checkTime(dt.getMonth() + 1);
+            var year= dt.getFullYear();
+            var now = day + "." + month + "." + year; 
+            
+            //дата в строке
+            var d=-1;
+            var rday,rmonth,ryear,rdate;
+            try{
+              do { //ищем совпадение
+                d++;
+                rday = checkTime(grafik[d][0].getDate());
+                rmonth = checkTime(grafik[d][0].getMonth() + 1);
+                ryear = grafik[d][0].getFullYear();
+                rdate = rday + "." + rmonth + "." + ryear; 
+              } while (now != rdate);
+            }catch(e){
+              sendmsg &= botSendMessage(chatId,'Неверный формат даты в ячейке '+sheetName+'!А'+(d+2)+' таблицы '+grafikToken);
+              return false;
+            }
+            
+            for (var iday = d; iday < d+days; iday++) { //цикл по дням
+              isCaptionSet = false;
+              //в цикле внутри строки по каждому столбцу проверяем кто работает и добавляем в сообщение
+              for (var i = 1; i < firstRow.length; i++) {
+                for (var j = 3; j < grafikConfig.length; j++) {
+                  if ((grafik[iday][i] == grafikConfig[j][1])&&((grafikConfig[j][0]=='*')||(grafikConfig[j][0]==sheetName)) ){ 
+                    if (!isMainCaptionSet) {
+                      //message = message+'\n'+grafikConfig[1+offset][номер столбца настроек] //на этой неделе работают...
+                      isMainCaptionSet = true;
+                    }
+                    if (!isCaptionSet) {
+                      var xday = checkTime(grafik[iday][0].getDate());
+                      var xmonth = checkTime(grafik[iday][0].getMonth() + 1);
+                      var xyear = grafik[iday][0].getFullYear();
+                      var xdate = xday + "." + xmonth + "." + xyear; 
+                      
+                      //var xdate = Utilities.formatDate(grafik[iday][0], "GMT", "dd.MM.YYYY");
+
+                      message = message + '\n\n <strong>' + xdate + ' ' + sheetName + '</strong>';
+                      isCaptionSet = true;
+                    }
+                    message = message + grafikConfig[j][2]+firstRow[i]+grafikConfig[j][3]
+                    break;
+                  }
+                }
+              }
+            
+            } //цикл по дням
+
+            if (!isMainCaptionSet) {
+              message = message+'\n'+grafikConfig[1+offset][1]
+              isMainCaptionSet = true;
+            }
+
+
+
+          } //Обход листов в графике
+        }
+        
+        if (!isMainCaptionSet) {
+          message = message+'\nНи чего не найдено! Проверьте настройки.'
+          error = true;
+        }
+        
+      }      
+
+
+
       //===WEEK===
-      out_week: if ( ( (command[0] == '/week') || (command[0] == '/week'+botName) 
-      ) && (!error) ) {
+      out_week: if ( ( (command[0] == '/week') || (command[0] == '/week'+botName)
+                     ) && (!error) ) {
                
         var days = 7;
                
@@ -304,6 +415,8 @@ function doPost(e) {
         
       }      
       
+
+
       //===CHATID===
       if ( (command[0] == '/chatid') || (command[0] == '/chatid'+botName) ) {
         message = ''+chatId
@@ -312,10 +425,15 @@ function doPost(e) {
       //===PING===
       if ( (command[0] == '/ping') || (command[0] == '/ping'+botName) ) {
 
-        message = 'pong';
+        message = 'Pong';
         if (command[1]) {message = 'pong '+allParam}
       }
       
+      //===VER===
+      if ( (command[0] == '/ver') || (command[0] == '/ver'+botName) ) {
+        message = 'Version: '+botVer;
+      }
+
       //===TEST===
       if ( (command[0] == '/test') || (command[0] == '/test'+botName) ) {
 
@@ -486,6 +604,8 @@ function doPost(e) {
 Либо команду <b>/today Техподдержка</b> чтобы узнать только про один отдел.\n\
 \n\
 Аналогичные команды <b>/yesterday</b> и <b>/tomorrow</b> отвечают за вчерашний и завтрашний дни.\n\
+\n\
+Команды <b>/week</b> и <b>/day N</b> выводят график на неделю или на N дней. Можно также фильтровать по отделу, например <b>/day 5 Техподдержка</b>.\
 \n\
 Команда <b>/delete</b> удаляетт настройки бота и все задачи cron.\n\
 \n\
